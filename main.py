@@ -4,8 +4,9 @@ import numpy as np
 # The Class WindowClass is inheriting from wx.Frame
 class WindowClass(wx.Frame):
     filepath = None
-    threshhold = 25
-    kernelsize = 15
+    redthreshhold = 25
+    bluethreshhold = 1
+    kernelsize = 10
 
     def __init__(self, *args, **kwargs):
         # Super has something to do with inheritance
@@ -27,8 +28,9 @@ class WindowClass(wx.Frame):
         # Define buttons and stuff
         analyzebutton = wx.Button(self.panel, -1, 'Analyze Image', wx.Point(0, 25))
         imagebutton = wx.Button(self.panel, -1, 'Choose Image')
-        thresholdinput = wx.TextCtrl(self.panel, 5, pos=wx.Point(0, 55), style=wx.TE_PROCESS_ENTER)
-        kernelsizeinput = wx.TextCtrl(self.panel, -1, pos=wx.Point(0, 85), style=wx.TE_PROCESS_ENTER)
+        redthresholdinput = wx.TextCtrl(self.panel, 5, pos=wx.Point(0, 55), style=wx.TE_PROCESS_ENTER)
+        bluethresholdinput = wx.TextCtrl(self.panel, 5, pos=wx.Point(0, 85), style=wx.TE_PROCESS_ENTER)
+        kernelsizeinput = wx.TextCtrl(self.panel, -1, pos=wx.Point(0, 115), style=wx.TE_PROCESS_ENTER)
 
         # Set the frame's MenuBar to the menuBar we've created
         self.SetMenuBar(menubar)
@@ -38,10 +40,15 @@ class WindowClass(wx.Frame):
         # Bind Buttons and Stuff
         self.Bind(wx.EVT_BUTTON, self.AnalyzeImage, analyzebutton)
         self.Bind(wx.EVT_BUTTON, self.filedialog, imagebutton)
-        self.Bind(wx.EVT_TEXT_ENTER, self.updatethreshold, thresholdinput)
+        self.Bind(wx.EVT_TEXT_ENTER, self.updateredthreshold, redthresholdinput)
+        self.Bind(wx.EVT_TEXT_ENTER, self.updatebluethreshhold, bluethresholdinput)
         self.Bind(wx.EVT_TEXT_ENTER, self.updatekernel, kernelsizeinput)
-        wx.StaticText(self.panel, -1, 'Threshold value (Default 25)', wx.Point(115, 60))
-        wx.StaticText(self.panel, -1, 'Kernel Matrix Size (Default 15)', wx.Point(115, 90))
+        wx.StaticText(self.panel, -1, 'Red Threshold value (Default 25). '
+                                      'Sets the R value that a pixel must exceed to be binarized', wx.Point(115, 60))
+        wx.StaticText(self.panel, -1, 'Blue Threshold value (Default 1). '
+                                      'Sets the B value that a pixel must exceed to be binarized', wx.Point(115, 90))
+        wx.StaticText(self.panel, -1, 'Kernel Matrix Size (Default 10). '
+                                      'Affects the size a blossom must be to be detected', wx.Point(115, 120))
 
         self.SetTitle('Control Panel')
         self.Show(True)
@@ -60,7 +67,6 @@ class WindowClass(wx.Frame):
             self.filepath = fileDialog.GetPath()
             wx.StaticText(self.panel, -1, self.filepath, wx.Point(105, 5))
 
-
     def AnalyzeImage(self, e):
         pathname = self.filepath
         # Load visible image with
@@ -69,10 +75,14 @@ class WindowClass(wx.Frame):
         b, g, r = cv2.split(visibleimg)
         # Subtract R image from G image to highlight blossoms
         rminusg = cv2.subtract(r, g)
-        bminusg = cv2.subtract(b, g)  # not currently using this in calculations
-        # Convert image to binary image with thresholding
-        th, binaryimg = cv2.threshold(rminusg, self.threshhold, 255, cv2.THRESH_BINARY);
-        # Kernel used to denoise image, used in morphology functions
+        bminusg = cv2.subtract(b, g)
+        # Convert images to binary image with thresholding
+        th, rbinaryimg = cv2.threshold(rminusg, self.redthreshhold, 255, cv2.THRESH_BINARY);
+        th, bbinaryimg = cv2.threshold(bminusg, self.bluethreshhold, 255, cv2.THRESH_BINARY);
+        # Convert to a final binary image where pixels are white only where both images above had white pixels.
+        binaryimg = cv2.bitwise_and(rbinaryimg,bbinaryimg)
+        # Kernel used to denoise
+        # image, used in morphology functions
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.kernelsize, self.kernelsize))
         # Denoise using morphology opening (Eroding then Dilating)
         denoiseimg = cv2.morphologyEx(binaryimg, cv2.MORPH_OPEN, kernel)
@@ -93,20 +103,30 @@ class WindowClass(wx.Frame):
         # Create window to display our images in, set the window size to normal so it can display big images nicely
         cv2.namedWindow('Blossom Identifier', cv2.WINDOW_NORMAL)
         cv2.imshow('Blossom Identifier', visibleimg)
+        # Create array of our images to be used in the wx.Choice dropdown
         imagechoices = ['Red Band', 'Green Band', 'Blue Band', 'Red minus Green', 'Blue minus Green', 'Binary Image', 'Denoised Image']
+        # Move all our images created into an array to be passed into a function
         imagelist = [r, g, b, rminusg, bminusg, binaryimg, denoiseimg]
-        imageselector = wx.Choice(self.panel, -1, pos=wx.Point(0, 115), choices=imagechoices, name='Image Selector')
+        # Define the wx.dropdown menu that will contain our created images
+        imageselector = wx.Choice(self.panel, -1, pos=wx.Point(0, 150), choices=imagechoices, name='Image Selector')
+        # When user selects an image from the dropdown it will pass the imagelist array at the index of the selection,
+        # Effectively passing in the image from the dropdown we selected to be displayed.
         self.Bind(wx.EVT_CHOICE, lambda event: self.showimage(event, imagelist[imageselector.GetSelection()]), imageselector)
 
-    def updatethreshold(self, e):
-        print('thres')
-        self.threshhold = int(self.panel.Children[2].GetValue())
+    def updateredthreshold(self, e):
+        # Updates threshold value from value in the input box
+        self.redthreshhold = int(self.panel.Children[2].GetValue())
+
+    def updatebluethreshhold(self, e):
+        # Updates threshhold value for blue binary image creation
+        self.bluethreshhold = int(self.panel.Children[3].GetValue())
 
     def updatekernel(self, e):
-        print('kern')
-        self.kernelsize = int(self.panel.Children[3].GetValue())
+        # Updates kernel value from the value in the input box
+        self.kernelsize = int(self.panel.Children[4].GetValue())
 
     def showimage(self, e, image):
+        # Shows the image that was selected in the dropdown
         cv2.namedWindow('Selected Image', cv2.WINDOW_NORMAL)
         cv2.imshow('Selected Image', image)
 
