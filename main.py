@@ -24,13 +24,40 @@ class WindowClass(wx.Frame):
         exititem = filebutton.Append(wx.ID_EXIT, 'Exit', 'status msg...')
         # Attach fileButton to menuBar
         menubar.Append(filebutton, 'File')
-        # Define buttons and stuff
+        # Define Labels
+        redthreshlabel = wx.StaticText(self.panel, -1, 'Red Threshold value (Default 25). '
+                                      'Sets the R value that a pixel must exceed to be binarized')
+        bluethreshlabel = wx.StaticText(self.panel, -1, 'Blue Threshold value (Default 1). '
+                                      'Sets the B value that a pixel must exceed to be binarized')
+        kernellabel = wx.StaticText(self.panel, -1, 'Kernel Matrix Size (Default 10). '
+                                      'Affects the size a blossom must be to be detected')
+        # Define Inputs
         analyzebutton = wx.Button(self.panel, -1, 'Analyze Image', wx.Point(0, 25))
         imagebutton = wx.Button(self.panel, -1, 'Choose Image')
-        redthresholdinput = wx.TextCtrl(self.panel, 5, pos=wx.Point(0, 55), style=wx.TE_PROCESS_ENTER)
-        bluethresholdinput = wx.TextCtrl(self.panel, 5, pos=wx.Point(0, 85), style=wx.TE_PROCESS_ENTER)
-        kernelsizeinput = wx.TextCtrl(self.panel, -1, pos=wx.Point(0, 115), style=wx.TE_PROCESS_ENTER)
-
+        redthresholdinput = wx.TextCtrl(self.panel, 5, style=wx.TE_PROCESS_ENTER)
+        bluethresholdinput = wx.TextCtrl(self.panel, 1, style=wx.TE_PROCESS_ENTER)
+        kernelsizeinput = wx.TextCtrl(self.panel, -1, style=wx.TE_PROCESS_ENTER)
+        # Create Sizers to hold buttons
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        analyzesizer = wx.BoxSizer(wx.HORIZONTAL)
+        analyzesizer.Add(analyzebutton, 0, 0, 0)
+        imagesizer = wx.BoxSizer(wx.HORIZONTAL)
+        imagesizer.Add(imagebutton, 0, 0, 0)
+        redthreshsizer = wx.BoxSizer(wx.HORIZONTAL)
+        redthreshsizer.Add(redthresholdinput, 0, 0, 0)
+        redthreshsizer.Add(redthreshlabel, 0, 0, 0)
+        bluethreshsizer = wx.BoxSizer(wx.HORIZONTAL)
+        bluethreshsizer.Add(bluethresholdinput, 0, 0, 0)
+        bluethreshsizer.Add(bluethreshlabel, 0, 0, 0)
+        kernelsizer = wx.BoxSizer(wx.HORIZONTAL)
+        kernelsizer.Add(kernelsizeinput, 0, 0, 0)
+        kernelsizer.Add(kernellabel, 0, 0, 0)
+        sizer.Add(imagesizer, 0, 0, 0)
+        sizer.Add(analyzesizer, 0, 0, 0)
+        sizer.Add(redthreshsizer, 0, 0, 0)
+        sizer.Add(bluethreshsizer, 0, 0, 0)
+        sizer.Add(kernelsizer, 0, 0, 0)
+        self.panel.SetSizer(sizer)
         # Set the frame's MenuBar to the menuBar we've created
         self.SetMenuBar(menubar)
         # Search for a call originating from exitItem in EVT_MENU and call self.Quit
@@ -42,12 +69,7 @@ class WindowClass(wx.Frame):
         self.Bind(wx.EVT_TEXT_ENTER, self.updateredthreshold, redthresholdinput)
         self.Bind(wx.EVT_TEXT_ENTER, self.updatebluethreshhold, bluethresholdinput)
         self.Bind(wx.EVT_TEXT_ENTER, self.updatekernel, kernelsizeinput)
-        wx.StaticText(self.panel, -1, 'Red Threshold value (Default 25). '
-                                      'Sets the R value that a pixel must exceed to be binarized', wx.Point(115, 60))
-        wx.StaticText(self.panel, -1, 'Blue Threshold value (Default 1). '
-                                      'Sets the B value that a pixel must exceed to be binarized', wx.Point(115, 90))
-        wx.StaticText(self.panel, -1, 'Kernel Matrix Size (Default 10). '
-                                      'Affects the size a blossom must be to be detected', wx.Point(115, 120))
+
 
         self.SetTitle('Control Panel')
         self.Show(True)
