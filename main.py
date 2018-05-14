@@ -14,7 +14,6 @@ class WindowClass(wx.Frame):
         self.SetSize(800, 600)
         self.basicGUI()
 
-
     def basicGUI(self):
         self.panel = wx.Panel(self)
         # Define menuBar and set it to a MenuBar type
@@ -130,10 +129,10 @@ class WindowClass(wx.Frame):
         cv2.namedWindow('Selected Image', cv2.WINDOW_NORMAL)
         cv2.imshow('Selected Image', image)
 
+
 def main():
     app = wx.App()
     WindowClass(None)
-
     app.MainLoop()
 
 
