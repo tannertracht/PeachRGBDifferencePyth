@@ -32,32 +32,36 @@ class WindowClass(wx.Frame):
         kernellabel = wx.StaticText(self.panel, -1, 'Kernel Matrix Size (Default 10). '
                                       'Affects the size a blossom must be to be detected')
         # Define Inputs
-        analyzebutton = wx.Button(self.panel, -1, 'Analyze Image', wx.Point(0, 25))
+        analyzebutton = wx.Button(self.panel, -1, 'Analyze Image')
         imagebutton = wx.Button(self.panel, -1, 'Choose Image')
-        redthresholdinput = wx.TextCtrl(self.panel, 5, style=wx.TE_PROCESS_ENTER)
-        bluethresholdinput = wx.TextCtrl(self.panel, 1, style=wx.TE_PROCESS_ENTER)
-        kernelsizeinput = wx.TextCtrl(self.panel, -1, style=wx.TE_PROCESS_ENTER)
-        # Create Sizers to hold buttons
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.redthresholdinput = wx.TextCtrl(self.panel, 5, style=wx.TE_PROCESS_ENTER)
+        self.bluethresholdinput = wx.TextCtrl(self.panel, 1, style=wx.TE_PROCESS_ENTER)
+        self.kernelsizeinput = wx.TextCtrl(self.panel, -1, style=wx.TE_PROCESS_ENTER)
+        self.imageselector = wx.Choice(self.panel, -1, name='Image Selector')
+        # Create Sizers to hold buttons and labels
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
         analyzesizer = wx.BoxSizer(wx.HORIZONTAL)
         analyzesizer.Add(analyzebutton, 0, 0, 0)
         imagesizer = wx.BoxSizer(wx.HORIZONTAL)
         imagesizer.Add(imagebutton, 0, 0, 0)
         redthreshsizer = wx.BoxSizer(wx.HORIZONTAL)
-        redthreshsizer.Add(redthresholdinput, 0, 0, 0)
-        redthreshsizer.Add(redthreshlabel, 0, 0, 0)
+        redthreshsizer.Add(self.redthresholdinput, 0, 0, 0)
+        redthreshsizer.Add(redthreshlabel, 0, wx.LEFT | wx.TOP, 5)
         bluethreshsizer = wx.BoxSizer(wx.HORIZONTAL)
-        bluethreshsizer.Add(bluethresholdinput, 0, 0, 0)
-        bluethreshsizer.Add(bluethreshlabel, 0, 0, 0)
+        bluethreshsizer.Add(self.bluethresholdinput, 0, 0, 0)
+        bluethreshsizer.Add(bluethreshlabel, 0, wx.LEFT | wx.TOP, 5)
         kernelsizer = wx.BoxSizer(wx.HORIZONTAL)
-        kernelsizer.Add(kernelsizeinput, 0, 0, 0)
-        kernelsizer.Add(kernellabel, 0, 0, 0)
-        sizer.Add(imagesizer, 0, 0, 0)
-        sizer.Add(analyzesizer, 0, 0, 0)
-        sizer.Add(redthreshsizer, 0, 0, 0)
-        sizer.Add(bluethreshsizer, 0, 0, 0)
-        sizer.Add(kernelsizer, 0, 0, 0)
-        self.panel.SetSizer(sizer)
+        kernelsizer.Add(self.kernelsizeinput, 0, 0, 0)
+        kernelsizer.Add(kernellabel, 0, wx.LEFT | wx.TOP, 5)
+        imageselectorsizer = wx.BoxSizer(wx.HORIZONTAL)
+        imageselectorsizer.Add(self.imageselector, 0, 0, 0)
+        self.sizer.Add(imagesizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(analyzesizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(redthreshsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(bluethreshsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(kernelsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(imageselectorsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.panel.SetSizer(self.sizer)
         # Set the frame's MenuBar to the menuBar we've created
         self.SetMenuBar(menubar)
         # Search for a call originating from exitItem in EVT_MENU and call self.Quit
@@ -66,9 +70,9 @@ class WindowClass(wx.Frame):
         # Bind Buttons and Stuff
         self.Bind(wx.EVT_BUTTON, self.AnalyzeImage, analyzebutton)
         self.Bind(wx.EVT_BUTTON, self.filedialog, imagebutton)
-        self.Bind(wx.EVT_TEXT_ENTER, self.updateredthreshold, redthresholdinput)
-        self.Bind(wx.EVT_TEXT_ENTER, self.updatebluethreshhold, bluethresholdinput)
-        self.Bind(wx.EVT_TEXT_ENTER, self.updatekernel, kernelsizeinput)
+        self.Bind(wx.EVT_TEXT_ENTER, self.updateredthreshold, self.redthresholdinput)
+        self.Bind(wx.EVT_TEXT_ENTER, self.updatebluethreshhold, self.bluethresholdinput)
+        self.Bind(wx.EVT_TEXT_ENTER, self.updatekernel, self.kernelsizeinput)
 
 
         self.SetTitle('Control Panel')
@@ -97,6 +101,7 @@ class WindowClass(wx.Frame):
         # Subtract R image from G image to highlight blossoms
         rminusg = cv2.subtract(r, g)
         bminusg = cv2.subtract(b, g)
+        rminusgminusb = cv2.subtract(rminusg, b)
         # Convert images to binary image with thresholding
         th, rbinaryimg = cv2.threshold(rminusg, self.redthreshhold, 255, cv2.THRESH_BINARY);
         th, bbinaryimg = cv2.threshold(bminusg, self.bluethreshhold, 255, cv2.THRESH_BINARY);
@@ -125,26 +130,31 @@ class WindowClass(wx.Frame):
         cv2.namedWindow('Blossom Identifier', cv2.WINDOW_NORMAL)
         cv2.imshow('Blossom Identifier', visibleimg)
         # Create array of our images to be used in the wx.Choice dropdown
-        imagechoices = ['Red Band', 'Green Band', 'Blue Band', 'Red minus Green', 'Blue minus Green', 'Binary Image', 'Denoised Image']
+        imagechoices = ['Red Band', 'Green Band', 'Blue Band', 'Red minus Green', 'Blue minus Green', 'Binary Image', 'Denoised Image', 'Red Minus Everything']
         # Move all our images created into an array to be passed into a function
-        imagelist = [r, g, b, rminusg, bminusg, binaryimg, denoiseimg]
+        imagelist = [r, g, b, rminusg, bminusg, binaryimg, denoiseimg, rminusgminusb]
         # Define the wx.dropdown menu that will contain our created images
-        imageselector = wx.Choice(self.panel, -1, pos=wx.Point(0, 150), choices=imagechoices, name='Image Selector')
+        self.imageselector.Clear()
+        self.imageselector.Append(imagechoices)
+
         # When user selects an image from the dropdown it will pass the imagelist array at the index of the selection,
         # Effectively passing in the image from the dropdown we selected to be displayed.
-        self.Bind(wx.EVT_CHOICE, lambda event: self.showimage(event, imagelist[imageselector.GetSelection()]), imageselector)
+        self.Bind(wx.EVT_CHOICE, lambda event: self.showimage(event, imagelist[self.imageselector.GetSelection()]), self.imageselector)
+
+    def cropimage(self, image):
+        pass
 
     def updateredthreshold(self, e):
         # Updates threshold value from value in the input box
-        self.redthreshhold = int(self.panel.Children[2].GetValue())
+        self.redthreshhold = int(self.redthresholdinput.GetValue())
 
     def updatebluethreshhold(self, e):
         # Updates threshhold value for blue binary image creation
-        self.bluethreshhold = int(self.panel.Children[3].GetValue())
+        self.bluethreshhold = int(self.bluethresholdinput.GetValue())
 
     def updatekernel(self, e):
         # Updates kernel value from the value in the input box
-        self.kernelsize = int(self.panel.Children[4].GetValue())
+        self.kernelsize = int(self.kernelsizeinput.GetValue())
 
     def showimage(self, e, image):
         # Shows the image that was selected in the dropdown
