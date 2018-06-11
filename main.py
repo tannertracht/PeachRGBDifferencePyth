@@ -1,6 +1,7 @@
 import wx
 import cv2
 import numpy as np
+import csv
 # The Class WindowClass is inheriting from wx.Frame
 class WindowClass(wx.Frame):
     filepath = None
@@ -38,6 +39,9 @@ class WindowClass(wx.Frame):
         self.bluethresholdinput = wx.TextCtrl(self.panel, 1, style=wx.TE_PROCESS_ENTER)
         self.kernelsizeinput = wx.TextCtrl(self.panel, -1, style=wx.TE_PROCESS_ENTER)
         self.imageselector = wx.Choice(self.panel, -1, name='Image Selector')
+        datasetbutton = wx.Button(self.panel, -1, 'Build Data Set')
+        exportcsvbutton = wx.Button(self.panel, -1, 'Export Data to CSV')
+        machineanalyzebutton = wx.Button(self.panel, -1, 'Analyze with Machine Learning')
         # Create Sizers to hold buttons and labels
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         analyzesizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -55,12 +59,21 @@ class WindowClass(wx.Frame):
         kernelsizer.Add(kernellabel, 0, wx.LEFT | wx.TOP, 5)
         imageselectorsizer = wx.BoxSizer(wx.HORIZONTAL)
         imageselectorsizer.Add(self.imageselector, 0, 0, 0)
+        datasetsizer = wx.BoxSizer(wx.HORIZONTAL)
+        datasetsizer.Add(datasetbutton, 0, 0, 0)
+        exportcsvsizer = wx.BoxSizer(wx.HORIZONTAL)
+        exportcsvsizer.Add(exportcsvbutton, 0, 0, 0)
+        analyzemachinesizer = wx.BoxSizer(wx.HORIZONTAL)
+        analyzemachinesizer.Add(machineanalyzebutton, 0, 0, 0)
         self.sizer.Add(imagesizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.sizer.Add(analyzesizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.sizer.Add(redthreshsizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.sizer.Add(bluethreshsizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.sizer.Add(kernelsizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.sizer.Add(imageselectorsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(datasetbutton, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(exportcsvsizer, 0, wx.TOP | wx.BOTTOM, 5)
+        self.sizer.Add(analyzemachinesizer, 0, wx.TOP | wx.BOTTOM, 5)
         self.panel.SetSizer(self.sizer)
         # Set the frame's MenuBar to the menuBar we've created
         self.SetMenuBar(menubar)
@@ -70,6 +83,9 @@ class WindowClass(wx.Frame):
         # Bind Buttons and Stuff
         self.Bind(wx.EVT_BUTTON, self.AnalyzeImage, analyzebutton)
         self.Bind(wx.EVT_BUTTON, self.filedialog, imagebutton)
+        self.Bind(wx.EVT_BUTTON, self.datasetbuilder, datasetbutton)
+        self.Bind(wx.EVT_BUTTON, self.exportcsv, exportcsvbutton)
+        self.Bind(wx.EVT_BUTTON, self.machineanalyze, machineanalyzebutton)
         self.Bind(wx.EVT_TEXT_ENTER, self.updateredthreshold, self.redthresholdinput)
         self.Bind(wx.EVT_TEXT_ENTER, self.updatebluethreshhold, self.bluethresholdinput)
         self.Bind(wx.EVT_TEXT_ENTER, self.updatekernel, self.kernelsizeinput)
@@ -161,6 +177,63 @@ class WindowClass(wx.Frame):
         cv2.namedWindow('Selected Image', cv2.WINDOW_NORMAL)
         cv2.imshow('Selected Image', image)
 
+    def datasetbuilder(self, e):
+        filepath = self.filepath
+        self.visibleimg = cv2.imread(filepath, 1)
+        # Split the image into the 3 bands
+        b, g, r = cv2.split(self.visibleimg)
+        # Subtract R image from G image to highlight blossoms
+        rminusg = cv2.subtract(r, g)
+        bminusg = cv2.subtract(b, g)
+        rminusgminusb = cv2.subtract(rminusg, b)
+        # Convert images to binary image with thresholding
+        th, rbinaryimg = cv2.threshold(rminusg, self.redthreshhold, 255, cv2.THRESH_BINARY);
+        th, bbinaryimg = cv2.threshold(bminusg, self.bluethreshhold, 255, cv2.THRESH_BINARY);
+        # Convert to a final binary image where pixels are white only where both images above had white pixels.
+        self.binaryimg = cv2.bitwise_and(rbinaryimg, bbinaryimg)
+        self.binarylabels = cv2.connectedComponentsWithStats(self.binaryimg, 4, cv2.CV_32S)
+        numberofclusters = self.binarylabels[0]
+        # 2 dimensional array with clusters and coresponding features
+        w, h = 7, numberofclusters;
+        self.dataset = [[0 for x in range(w)] for y in range(h)]
+        for i in range(self.binarylabels[0]):
+            centroidx = int(self.binarylabels[3][i][0])
+            centroidy = int(self.binarylabels[3][i][1])
+            clusterarea = self.binarylabels[2][i][4]
+            pixel = self.visibleimg[centroidy, centroidx]
+            self.dataset[i][0] = centroidx
+            self.dataset[i][1] = centroidy
+            self.dataset[i][2] = clusterarea
+            self.dataset[i][3] = pixel[2] # Set red value of cluster
+            self.dataset[i][4] = pixel[1] # Set blue value of cluster
+            self.dataset[i][5] = pixel[0] # Set green value of cluster
+            # Fourth item in list will be whether the cluster is a blossom or not, defaults to False
+            self.dataset[i][6] = 0
+        cv2.namedWindow('Blossom Selector', cv2.WINDOW_NORMAL)
+        cv2.imshow('Blossom Selector', self.visibleimg)
+        cv2.setMouseCallback('Blossom Selector', self.updatedataset)
+
+    def updatedataset(self, event, x, y, flags, param):
+        #
+        if event == cv2.EVENT_LBUTTONDOWN:
+            clickedlabel = self.binarylabels[1][y][x]
+            print(x, y)
+            if clickedlabel != 0:
+                self.dataset[clickedlabel][6] = 1
+                topleftx = self.binarylabels[2][clickedlabel][0]
+                toplefty = self.binarylabels[2][clickedlabel][1]
+                bottomrightx = self.binarylabels[2][clickedlabel][0] + self.binarylabels[2][clickedlabel][2]
+                bottomrighty = self.binarylabels[2][clickedlabel][1] + self.binarylabels[2][clickedlabel][3]
+                cv2.rectangle(self.visibleimg, (topleftx, toplefty), (bottomrightx, bottomrighty), (0, 0, 0), -1)
+                cv2.imshow('Blossom Selector', self.visibleimg)
+
+    def exportcsv(self, e):
+        with open("new_file.csv", "w+") as my_csv:
+            csvwriter = csv.writer(my_csv, delimiter=',')
+            csvwriter.writerows(self.dataset)
+
+    def machineanalyze(self, e):
+        model = tf.estimator.LinearClassifier(model_dir="model", feature_columns=construct_feature_columns())
 
 def main():
     app = wx.App()
